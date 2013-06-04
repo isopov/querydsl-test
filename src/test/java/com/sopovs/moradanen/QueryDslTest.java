@@ -82,7 +82,7 @@ public class QueryDslTest {
                 new JPAQuery(em)
                         .from(salary)
                         .where(salary.employee.name.eq("Anderson"))
-                        .orderBy(salary.id.asc())
+                        .orderBy(salary.salaryDay.id.asc())
                         .list(new QEmployeeSumSalary(salary.employee.name,
                                 new JPASubQuery()
                                         .from(salary2)
