@@ -4,6 +4,8 @@ import static com.sopovs.moradanen.domain.QSalary.salary;
 import static java.util.Arrays.asList;
 import static org.junit.Assert.assertEquals;
 
+import java.util.List;
+
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 
@@ -28,69 +30,91 @@ import com.sopovs.moradanen.dto.QEmployeeSumSalary;
 @Transactional
 public class QueryDslTest {
 
-    @PersistenceContext
-    private EntityManager em;
+	@PersistenceContext
+	private EntityManager em;
 
-    @Before
-    public void setup() {
-        Employee smith = new Employee("Smith");
-        Employee anderson = new Employee("Anderson");
+	@Before
+	public void setup() {
+		Employee smith = new Employee("Smith");
+		Employee anderson = new Employee("Anderson");
 
-        em.persist(smith);
-        em.persist(anderson);
+		em.persist(smith);
+		em.persist(anderson);
 
-        SalaryDay first = new SalaryDay();
-        SalaryDay second = new SalaryDay();
-        SalaryDay third = new SalaryDay();
+		SalaryDay first = new SalaryDay();
+		SalaryDay second = new SalaryDay();
+		SalaryDay third = new SalaryDay();
 
-        em.persist(first);
-        em.persist(second);
-        em.persist(third);
+		em.persist(first);
+		em.persist(second);
+		em.persist(third);
 
-        em.persist(new Salary(smith, first, 5L));
-        em.persist(new Salary(smith, second, 10L));
-        em.persist(new Salary(smith, third, 15L));
+		em.persist(new Salary(smith, first, 5L));
+		em.persist(new Salary(smith, second, 10L));
+		em.persist(new Salary(smith, third, 15L));
 
-        em.persist(new Salary(anderson, first, 7L));
-        em.persist(new Salary(anderson, second, 14L));
-        em.persist(new Salary(anderson, third, 21L));
-    }
+		em.persist(new Salary(anderson, first, 7L));
+		em.persist(new Salary(anderson, second, 14L));
+		em.persist(new Salary(anderson, third, 21L));
+	}
 
-    @Test
-    public void testSize() {
-        assertEquals(6l, new JPAQuery(em).from(salary).count());
-    }
+	@Test
+	public void testSize() {
+		assertEquals(6l, new JPAQuery(em).from(salary).count());
+	}
 
-    @Test
-    public void testSalarySum() {
-        assertEquals(
-                asList(new EmployeeSumSalary("Anderson", 42L), new EmployeeSumSalary("Smith", 30L)),
-                new JPAQuery(em)
-                        .from(salary)
-                        .groupBy(salary.employee)
-                        .orderBy(salary.employee.name.asc())
-                        .list(new QEmployeeSumSalary(salary.employee.name, salary.value.sum())));
-    }
+	@Test
+	public void testSalarySum() {
+		assertEquals(
+				asList(new EmployeeSumSalary("Anderson", 42L), new EmployeeSumSalary("Smith", 30L)),
+				new JPAQuery(em)
+						.from(salary)
+						.groupBy(salary.employee)
+						.orderBy(salary.employee.name.asc())
+						.list(new QEmployeeSumSalary(salary.employee.name, salary.value.sum())));
+	}
 
-    @Test
-    public void testCumulativeSalarySum() {
-        QSalary salary2 = new QSalary("salary2");
-        assertEquals(
-                asList(new EmployeeSumSalary("Anderson", 7L),
-                        new EmployeeSumSalary("Anderson", 21L),
-                        new EmployeeSumSalary("Anderson", 42L)),
-                new JPAQuery(em)
-                        .from(salary)
-                        .where(salary.employee.name.eq("Anderson"))
-                        .orderBy(salary.salaryDay.id.asc())
-                        .list(new QEmployeeSumSalary(salary.employee.name,
-                                new JPASubQuery()
-                                        .from(salary2)
-                                        .where(salary.employee.eq(salary2.employee)
-                                                .and(salary.id.goe(salary2.id))
-                                        )
-                                        .unique(salary2.value.sum())
-                                )
-                        ));
-    }
+	@Test
+	public void testCumulativeSalarySum() {
+		QSalary salary2 = new QSalary("salary2");
+		assertEquals(
+				asList(new EmployeeSumSalary("Anderson", 7L),
+						new EmployeeSumSalary("Anderson", 21L),
+						new EmployeeSumSalary("Anderson", 42L)),
+				new JPAQuery(em)
+						.from(salary)
+						.where(salary.employee.name.eq("Anderson"))
+						.orderBy(salary.salaryDay.id.asc())
+						.list(new QEmployeeSumSalary(salary.employee.name,
+								new JPASubQuery()
+										.from(salary2)
+										.where(salary.employee.eq(salary2.employee)
+												.and(salary.id.goe(salary2.id))
+										)
+										.unique(salary2.value.sum())
+								)
+						));
+	}
+
+	@Test
+	public void testCumulativeSalarySumJoin() {
+		QSalary salary2 = new QSalary("salary2");
+
+		List<EmployeeSumSalary> result = new JPAQuery(em).
+				from(salary, salary2)
+				.where(salary.employee.name.eq("Anderson")
+						.and(salary.employee.eq(salary2.employee))
+						.and(salary.id.goe(salary2.id))
+				)
+				.orderBy(salary.salaryDay.id.asc())
+				.groupBy(salary.employee, salary.id)
+				.list(new QEmployeeSumSalary(salary.employee.name, salary2.value.sum()));
+
+		assertEquals(
+				asList(new EmployeeSumSalary("Anderson", 7L),
+						new EmployeeSumSalary("Anderson", 21L),
+						new EmployeeSumSalary("Anderson", 42L)),
+				result);
+	}
+
 }
